@@ -1,0 +1,60 @@
+/*
+   solving   Laplace operator with Neumann boundary condition
+   with 1D lagrange multiplier
+   
+   The variational form is
+   find (u,l) such that
+
+   $\forall (v,m)   a(u,v) + b(u,m) + b(v,l) = L(v) $
+   where $b(u,m) = int u*m dx$
+   
+*/
+
+ int num = 50;
+ // border
+border C0(t=-1, 1){x=t; y=-1; label=0;};
+border C1(t=-1, 1){x=1; y=t; label=1;};
+border C2(t=-1, 1){x=-t; y=1; label=2;};
+border C3(t=-1, 1){x=-1; y=-t; label=3;};
+// mesh/
+mesh Th = buildmesh(C0(num)+C1(num)+C2(num)+C3(num));
+plot(Th, wait = true);
+fespace Vh(Th,P1);     // P1 FE space
+int n = Vh.ndof;
+int n1 = n+1;
+
+Vh uh,vh;              // unknown and test function. 
+func f=2*sin(pi*x)*sin(pi*y)*pi*pi;                 //  right hand side function 
+Vh g1=pi*cos(pi*x)*sin(pi*y);
+Vh g2=pi*cos(pi*y)*sin(pi*x);
+
+  
+varf va(uh,vh) =                    //  definition of  the problem 
+    int2d(Th)( dx(uh)*dx(vh) + dy(uh)*dy(vh) ) //  bilinear form
+;
+varf vL(uh,vh)=  int2d(Th)(f*vh)+int1d(Th,0)(-g2*vh)+int1d(Th,1)(g1*vh)+int1d(Th,2)(g2*vh)+int1d(Th,3)(-g1*vh);
+varf vb(uh,vh)= int2d(Th)(1.*vh);
+
+matrix A=va(Vh,Vh);
+
+real[int] b(n);
+b = vL(0,Vh);
+
+real[int]  B = vb(0,Vh); 	
+// the block matrix
+
+matrix AA = [ [ A ,  B ] ,
+              [ B', 0 ] ] ;
+
+real[int]  bb(n+1),xx(n+1),b1(1),l(1);
+b1=0;
+// build the block rhs 
+bb = [ b, b1];
+set(AA,solver=sparsesolver);
+xx = AA^-1*bb; // solve the linear system
+
+[uh[],l] = xx;  // set the value 
+cout << " l = " << l(0) <<  " ,  b(u,1)  =" << B'*uh[]  << endl;  
+plot(uh, wait=1, fill=true);
+Vh or = sin(pi*x)*sin(pi*y);
+plot(or, fill=true, wait=1);

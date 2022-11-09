@@ -1,0 +1,83 @@
+// Parameters
+real dt = 0.05;  // time intervel
+
+int n = 50; // mesh number
+
+bool debug = true;
+
+// generator border and mesh
+
+// border
+border C0(t=-1, 1){x=t; y=-1; label=0;};
+border C1(t=-1, 1){x=1; y=t; label=1;};
+border C2(t=-1, 1){x=-t; y=1; label=2;};
+border C3(t=-1, 1){x=-1; y=-t; label=3;};
+// mesh/
+mesh Th = buildmesh(C0(n)+C1(n)+C2(n)+C3(n));
+plot(Th, wait = debug);
+
+
+// Fespace
+fespace Vh(Th,RT0);
+fespace Ph(Th,P0);
+
+Ph theta0; // assistant distribution
+Ph theta = sin(pi*x); // initial distribution
+plot(theta, wait=true, fill = true);
+
+// Time loop
+real t = 0.;
+for (int m = 0; m < 1/dt; m++){
+    // Update
+    t += dt; 
+
+    // Solve a Poisson equation with Dirichlet boundary condition
+    /* 
+        -(\Delta)(\varphi)=-\nabla\cdot\u:=f
+        u = g on partial_Omega
+    */ 
+
+    // get varphi
+    Ph varphi, v;  
+
+    problem Possion(varphi, v)=    // Definition of the problem
+
+        -int2d(Th)(dx(varphi)*dx(v)+dy(varphi)*dy(v))    // bilinear form
+
+        +int2d(Th)(-theta*v)          // linear form
+
+    +on(0,1,2,3,varphi=0);            // Dirichlet Conditions
+
+    Possion;              // Solve Poisson Equation
+
+    // get projection
+
+    // Solve a Poisson equation with pure Neumann boundary condition
+    /* 
+        -(\Delta)(\varphi)=-\nabla\cdot\u:=f
+        n\cdot\varphi=n\cdot\u:=g
+    */ 
+
+    Ph gd = ;
+    func f = 1.;
+
+    Vh [u1,u2],[v1,v2];
+    Ph p,q; 
+
+    problem laplaceMixte([u1,u2,p],[v1,v2,q],solver=sparsesolver,eps=1.0e-10,tgv=1e30,dimKrylov=150) =
+    int2d(Th)( p*q*0e-10+ u1*v1 + u2*v2 + p*(dx(v1)+dy(v2)) + (dx(u1)+dy(u2))*q )
+    + int2d(Th) ( f*q)
+    - int1d(Th,1,2,3,4)( gd*(v1*N.x +v2*N.y))   //  int on gamma 
+    ;
+
+
+
+    // convection
+
+    theta0 = theta;
+    theta = convect([p1, p2], -dt, theta0);
+
+    // Plot
+    plot(theta, cmm=" t="+t+", min="+theta[].min+", max="+theta[].max, fill = true); 
+    
+}

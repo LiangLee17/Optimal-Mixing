@@ -1,0 +1,39 @@
+bool debug=true;
+int n=300;
+
+//mesh generation of a square
+
+
+// border
+border C0(t=-1, 1){x=t; y=-1; label=0;};
+border C1(t=-1, 1){x=1; y=t; label=1;};
+border C2(t=-1, 1){x=-t; y=1; label=2;};
+border C3(t=-1, 1){x=-1; y=-t; label=3;};
+// mesh/
+mesh Th = buildmesh(C0(n)+C1(n)+C2(n)+C3(n));
+plot(Th, wait = debug);
+
+fespace Vh(Th, P1);  // space of P1 Finite Elements
+
+Vh u, v;   // u and v belongs to Vh
+
+func f=2*sin(pi*x)*sin(pi*y);  // f is a function of x and y
+Vh g=sin(pi*x)*sin(pi*y);
+
+problem Possion(u,v)=    // Definition of the problem
+
+    -int2d(Th)(dx(u)*dx(v)+dy(u)*dy(v))    // bilinear form
+
+    +int2d(Th)(f*v)          // linear form
+
++on(0,1,2,3,u=0);            // Dirichlet Conditions
+
+Possion;              // Solve Poisson Equation
+
+plot(u, fill=true, wait=true);       // Plot the result
+plot(g, fill=true, wait=true);
+
+Vh test=dx(u);
+Vh ori=pi*cos(pi*x)*sin(pi*y);
+plot(test, fill=true, wait=true);
+plot(ori, fill=true, wait=true);

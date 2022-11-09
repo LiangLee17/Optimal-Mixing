@@ -1,0 +1,113 @@
+// Parameters
+real dt = 0.05;  // time intervel
+
+int n = 50; // mesh number
+
+bool debug = true;
+
+// generator border and mesh
+
+// border
+border C0(t=-1, 1){x=t; y=-1; label=0;};
+border C1(t=-1, 1){x=1; y=t; label=1;};
+border C2(t=-1, 1){x=-t; y=1; label=2;};
+border C3(t=-1, 1){x=-1; y=-t; label=3;};
+// mesh/
+mesh Th = buildmesh(C0(n)+C1(n)+C2(n)+C3(n));
+plot(Th, wait = debug);
+
+
+// Fespace
+fespace Vh(Th, P1);
+
+Vh theta0; // assistant distribution
+Vh theta = sin(pi*x); // initial distribution
+plot(theta, wait=true, fill = true);
+
+// Time loop
+real t = 0.;
+for (int m = 0; m < 1/dt; m++){
+    // Update
+    t += dt; 
+
+    // Solve a Poisson equation with Dirichlet boundary condition
+    /* 
+        -(\Delta)(\varphi)=-\nabla\cdot\u:=f
+        u = g on partial_Omega
+    */ 
+
+    // get varphi
+    Vh varphi, v;  
+
+    problem Possion(varphi, v)=    // Definition of the problem
+
+        -int2d(Th)(dx(varphi)*dx(v)+dy(varphi)*dy(v))    // bilinear form
+
+        +int2d(Th)(-theta*v)          // linear form
+
+    +on(0,1,2,3,varphi=0);            // Dirichlet Conditions
+
+    Possion;              // Solve Poisson Equation
+
+    // get projection
+
+    // Solve a Poisson equation with pure Neumann boundary condition
+    /* 
+        -(\Delta)(\varphi)=-\nabla\cdot\u:=f
+        n\cdot\varphi=n\cdot\u:=g
+    */ 
+
+    int n = Vh.ndof;
+    int n1 = n+1;
+
+    Vh uh,vh;              // unknown and test function. 
+    // without projection
+    Vh u1 = theta*(dx(varphi));
+    Vh u2 = theta*(dy(varphi));                  //  right hand side function 
+    
+    varf va(uh,vh) =                    //  definition of  the problem 
+        int2d(Th)( dx(uh)*dx(vh) + dy(uh)*dy(vh) ) //  bilinear form
+    ;
+    varf vL(uh,vh)=  int2d(Th)(-u1*vh-u2*vh) + int1d(Th,0)(-u2*vh) + int1d(Th,1)(u1*vh) 
+                                            + int1d(Th,2)(u2*vh) + int1d(Th,3)(-u1*vh);
+    varf vb(uh,vh)= int2d(Th)(1.*vh);
+
+    matrix A=va(Vh,Vh);
+
+    real[int] b(n);
+    b = vL(0,Vh);
+
+    real[int]  B = vb(0,Vh); 	
+    // the block matrix
+
+    matrix AA = [ [ A ,  B ] ,
+                [ B', 0 ] ] ;
+
+    real[int]  bb(n+1),xx(n+1),b1(1),l(1);
+    b1=0;
+    // build the block rhs 
+    bb = [ b, b1];
+    set(AA,solver=sparsesolver);
+    xx = AA^-1*bb; // solve the linear system
+
+    [uh[],l] = xx;  // set the value 
+    
+    // projection
+    Vh up1, up2, p1, p2;
+    up1 = u1-dx(uh);
+    up2 = u2-dy(uh);
+
+    real l2norm = sqrt(int2d(Th)(up1*up1+up2*up2));
+    
+    p1 = up1/l2norm;
+    p2 = up2/l2norm;
+
+    // convection
+
+    theta0 = theta;
+    theta = convect([p1, p2], -dt, theta0);
+
+    // Plot
+    plot(theta, cmm=" t="+t+", min="+theta[].min+", max="+theta[].max, fill = true); 
+    
+}

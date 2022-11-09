@@ -1,0 +1,36 @@
+// Parameters
+real dt = 0.05;
+
+//mesh generation of a square
+
+real x0 = -1;
+real x1 = 1;
+real y0 = -1;
+real y1 = 1;
+int n = 100;
+int m = 100;
+mesh Th = square(n, m, [x0+(x1-x0)*x, y0+(y1-y0)*y]);
+
+// Fespace
+fespace Vh(Th, P1);
+Vh u0;
+Vh a1 = -y, a2 = x; //rotation velocity 
+Vh u;
+
+// Initialization
+u = cos(2*pi*x)*cos(pi*y) + 0.5*cos(2*pi*y);
+plot(u, wait=true, fill=true);
+
+// Time loop
+real t = 0.;
+for (int m = 0; m < 2*pi/dt; m++){
+    // Update
+    t += dt; 
+    u0 = u;
+
+    // Convect
+    u = convect([a1, a2], -dt, u0); //u^{m+1}=u^m(X^m(x))
+
+    // Plot
+    plot(u, cmm=" t="+t+", min="+u[].min+", max="+u[].max, fill = true); 
+}
