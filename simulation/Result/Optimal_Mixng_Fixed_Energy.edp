@@ -1,7 +1,7 @@
 // Parameters
 real dt = 0.05;  // time intervel
 
-int n = 50; // mesh number
+int n0 = 50; // mesh number
 
 bool debug = true;
 
@@ -13,7 +13,7 @@ border C1(t=-1, 1){x=1; y=t; label=1;};
 border C2(t=-1, 1){x=-t; y=1; label=2;};
 border C3(t=-1, 1){x=-1; y=-t; label=3;};
 // mesh/
-mesh Th = buildmesh(C0(n)+C1(n)+C2(n)+C3(n));
+mesh Th = buildmesh(C0(n0)+C1(n0)+C2(n0)+C3(n0));
 plot(Th, wait = debug);
 
 
@@ -21,12 +21,12 @@ plot(Th, wait = debug);
 fespace Vh(Th, P1);
 
 Vh theta0; // assistant distribution
-Vh theta = sin(pi*x); // initial distribution
+Vh theta = sin(pi*x);//cos(2*pi*x)*cos(pi*y)+0.5*cos(3*pi*y)+x+y; // initial distribution
 plot(theta, wait=true, fill = true);
 
 // Time loop
 real t = 0.;
-for (int m = 0; m < 1/dt; m++){
+for (int m = 0; m < 10/dt; m++){
     // Update
     t += dt; 
 
@@ -68,7 +68,7 @@ for (int m = 0; m < 1/dt; m++){
     varf va(uh,vh) =                    //  definition of  the problem 
         int2d(Th)( dx(uh)*dx(vh) + dy(uh)*dy(vh) ) //  bilinear form
     ;
-    varf vL(uh,vh)=  int2d(Th)(-u1*vh-u2*vh) + int1d(Th,0)(-u2*vh) + int1d(Th,1)(u1*vh) 
+    varf vL(uh,vh)=  int2d(Th)(-dx(u1)*vh-dy(u2)*vh) + int1d(Th,0)(-u2*vh) + int1d(Th,1)(u1*vh) 
                                             + int1d(Th,2)(u2*vh) + int1d(Th,3)(-u1*vh);
     varf vb(uh,vh)= int2d(Th)(1.*vh);
 
@@ -108,6 +108,5 @@ for (int m = 0; m < 1/dt; m++){
     theta = convect([p1, p2], -dt, theta0);
 
     // Plot
-    plot(theta, cmm=" t="+t+", min="+theta[].min+", max="+theta[].max, fill = true); 
-    
+    plot(theta, cmm=" t="+t+", min="+theta[].min+", max="+theta[].max, ,fill = true); 
 }
