@@ -1,0 +1,123 @@
+// myConvection.edp
+//
+//  Discussion:
+//
+//    Present a evolution of a passive scalar filed (temperature hear) domained by a convection equation.
+//    Scheme of this code is based on another convection.edp
+//  
+//  Things we do:
+//
+//  Reference:
+//
+//    
+
+//  Parameter
+real Lx = 2.*pi;        // length of axis-x
+real Ly = 2.*pi;        // length of axis-y
+real dt = 0.1;            // dt
+real dtsnap = 100.0;    // ?
+real time = 0.0;        // begin time
+real tsnap = dt;        // ?
+int itmax=300;          // max iterator length
+
+//  Save evolution process
+real[int] itplot(itmax);
+real[int] mass(itmax);
+
+cout << "\n";
+cout << "myConvection:\n";
+cout << "  FreeFem++ version\n";
+cout << "  An advection problem.\n";
+
+//  Border
+border C0(t=0., 2.*pi){x=t; y=0;}
+border C1(t=0., 2.*pi){x=2*pi; y=t;}
+border C2(t=0, 2.*pi){x=t; y=2*pi;}
+border C3(t=0, 2.*pi){x=0; y=t;}
+
+//  Build the mesh.
+real x0 = 0;
+real y0 = 0;
+real x1 = 2.*pi;
+real y1 = 2.*pi;
+int n = 20;
+real m = 20;
+mesh Th = square(n, m, [x0+(x1-x0)*x, y0+(y1-y0)*y]);
+
+plot ( Th, wait = false, ps = "convection_mesh.ps" );
+//
+func fy = x - Lx / 2;
+
+//  Define the finite element spaces.
+//  TODO: Which finite element spaces should we choose and why?
+fespace Uh ( Th, P1b );
+fespace Vh ( Th, P1 );
+
+Uh u1;
+Uh u1h;
+Uh u2;
+Uh u2h;
+Vh p;
+Vh ph;
+Vh q;
+
+//  Define the velocity field by some approach, this is the main problem we should consider and fixed.
+//  TODO:
+
+// problem Stokes ( [u1, u2, p], [u1h, u2h,ph] ) =
+//   int2d(Th) (dx(u1)*dx(u1h)+dy(u1)*dy(u1h))
+// + int2d(Th) (dx(u2)*dx(u2h)+dy(u2)*dy(u2h))
+// + int2d(Th) (dx(p)*u1h+dy(p)*u2h)
+// + int2d(Th) (dx(u1)*ph+dy(u2)*ph)
+// - int2d(Th) (fy*u2h)
+// + on ( C0, C1, C2, C3, u1=0, u2=0 );
+
+//  The result.
+
+Stokes; 
+
+//  Plot the velocity field.
+plot ( [u1, u2], ps = "convection_velocity.ps" );
+
+q = ( sqrt((x-Lx/2)^2+(y-Ly/8)^2)<0.2 );
+//
+//  Measure the initial total mass.
+//
+real mass0 = int2d ( Th ) ( q );
+//
+plot ( q, nbiso = 40, fill = true, wait = false );
+//
+for ( int it = 0; it < itmax; it++ )
+{
+  itplot[it] = it;
+  q = convect ( [u1,u2], -dt, q );
+  mass[it] = int2d(Th) (q);
+  time = time + dt;
+  plot ( q, nbiso = 40, fill = true );
+  cout << "Mass0 = " << mass0 << "  Mass(" << time << ") = " << mass[it] << endl;
+  if ( ( it + 1 ) % 100 == 0 )
+  {
+    tsnap = tsnap + dtsnap;
+    string filename = "q_time_"+time+".ps";
+    plot ( q, nbiso = 60, fill = true, ps = filename );
+  }
+}
+
+plot ( [ itplot, mass ], value = true,
+  cmm = "Mass iteration", ps = "mass_histogram.ps" );
+//
+//  Write a file.
+//
+ofstream of ( "mass_histogram.txt" );
+for ( int it = 0; it < itmax; it++ ) 
+{
+  of << itplot[it] << " " << mass[it] << endl;
+}
+//
+//  Terminate.
+//
+cout << "\n";
+cout << "convection:\n";
+cout << "  Normal end of execution.\n";
+
+exit ( 0 );

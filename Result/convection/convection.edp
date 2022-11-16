@@ -1,0 +1,172 @@
+// convection.edp
+//
+//  Discussion:
+//
+//    Solve a pure transport problem using the method of characteristics.
+//
+//  Location:
+//
+//    https://people.sc.fsu.edu/~jburkardt/freefem_src/convection/convection.edp
+//
+//  Licensing:
+//
+//    This code is distributed under the GNU LGPL license.
+//
+//  Modified:
+//
+//    17 May 2015
+//
+//  Author:
+//
+//    Florian De Vuyst
+//
+//  Reference:
+//
+//    Florian De Vuyst,
+//    Numerical modeling of transport problems using freefem++ software -
+//    with examples in biology, CFD, traffic flow and energy transfer,
+//    HAL id: cel-00842234
+//    https://cel.archives-ouvertes.fr/cel-00842234
+//
+real Lx = 6;
+real Ly = 4;
+real dt = 3;
+real dtsnap = 100.0;
+real time = 0.0;
+real tsnap = dt;
+int itmax=300;
+//
+real[int] A(2);
+real[int] B(2);
+real[int] C(2);
+real[int] D(2);
+real[int] E(2);
+real[int] F(2);
+real[int] G(2);
+real[int] H(2);
+real[int] I(2);
+real[int] J(2);
+real[int] K(2);
+real[int] L(2);
+real[int] O(2);
+real[int] P(2);
+real[int] Q(2);
+real[int] R(2);
+real[int] itplot(itmax);
+real[int] mass(itmax);
+
+cout << "\n";
+cout << "convection:\n";
+cout << "  FreeFem++ version\n";
+cout << "  A mass convection problem.\n";
+
+A = [0,0];
+B = [Lx,0];
+C = [Lx,Ly];
+D = [0,Ly];
+E = [Lx/2,Ly/4];
+F = [Lx/2,3*Ly/4];
+G = [Lx/6,Ly/4];
+H = [5*Lx/6,Ly/4];
+I = [Lx/6,3*Ly/4];
+J = [5*Lx/6,3*Ly/4];
+O = [0, Ly/2];
+P = [Lx/3,Ly/2];
+Q = [2*Lx/3, Ly/2];
+R = [Lx,Ly/2];
+
+border c1(t=0,1) { x=(1-t)*A[0]+t*B[0]; y=(1-t)*A[1]+t*B[1]; }
+border c2(t=0,1) { x=(1-t)*B[0]+t*C[0]; y=(1-t)*B[1]+t*C[1]; }
+border c3(t=0,1) { x=(1-t)*C[0]+t*D[0]; y=(1-t)*C[1]+t*D[1]; }
+border c4(t=0,1) { x=(1-t)*D[0]+t*A[0]; y=(1-t)*D[1]+t*A[1]; }
+border c5(t=0,1) { x=(1-t)*E[0]+t*F[0]; y=(1-t)*E[1]+t*F[1]; }
+border c6(t=0,1) { x=(1-t)*G[0]+t*H[0]; y=(1-t)*G[1]+t*H[1]; }
+border c7(t=0,1) { x=(1-t)*I[0]+t*J[0]; y=(1-t)*I[1]+t*J[1]; }
+border c8(t=0,1) { x=(1-t)*O[0]+t*P[0]; y=(1-t)*O[1]+t*P[1]; }
+border c9(t=0,1) { x=(1-t)*Q[0]+t*R[0]; y=(1-t)*Q[1]+t*R[1]; }
+//
+//  Build the mesh.
+//
+int nn = 20;
+
+mesh Th = buildmesh ( 
+  c1(8*nn) + c2(6*nn) + c3(8*nn) + c4(6*nn)
++ c5(4*nn) + c6(5*nn) + c7(5*nn) + c8(3*nn) + c9(3*nn) );
+
+plot ( Th, wait = false, ps = "convection_mesh.ps" );
+//
+func fy = x - Lx / 2;
+//
+//  Define the finite element spaces.
+//
+fespace Uh ( Th, P1b );
+fespace Vh ( Th, P1 );
+
+Uh u1;
+Uh u1h;
+Uh u2;
+Uh u2h;
+Vh p;
+Vh ph;
+Vh q;
+//
+//  Define the Stokes problem:
+//
+problem Stokes ( [u1, u2, p], [u1h, u2h,ph] ) =
+  int2d(Th) (dx(u1)*dx(u1h)+dy(u1)*dy(u1h))
++ int2d(Th) (dx(u2)*dx(u2h)+dy(u2)*dy(u2h))
++ int2d(Th) (dx(p)*u1h+dy(p)*u2h)
++ int2d(Th) (dx(u1)*ph+dy(u2)*ph)
+- int2d(Th) (fy*u2h)
++ on ( c1, c2, c3, c4, c5, c6, c7, c8, c9, u1=0, u2=0 );
+//
+//  Solve the Stokes problem.
+//
+Stokes; 
+//
+//  Plot the convection velocity field.
+//
+plot ( [u1, u2], ps = "convection_velocity.ps" );
+//
+q = ( sqrt((x-Lx/2)^2+(y-Ly/8)^2)<0.2 );
+//
+//  Measure the initial total mass.
+//
+real mass0 = int2d ( Th ) ( q );
+//
+plot ( q, nbiso = 40, fill = true, wait = false );
+//
+for ( int it = 0; it < itmax; it++ )
+{
+  itplot[it] = it;
+  q = convect ( [u1,u2], -dt, q );
+  mass[it] = int2d(Th) (q);
+  time = time + dt;
+  plot ( q, nbiso = 40, fill = true );
+  cout << "Mass0 = " << mass0 << "  Mass(" << time << ") = " << mass[it] << endl;
+  if ( ( it + 1 ) % 100 == 0 )
+  {
+    tsnap = tsnap + dtsnap;
+    string filename = "q_time_"+time+".ps";
+    plot ( q, nbiso = 60, fill = true, ps = filename );
+  }
+}
+
+plot ( [ itplot, mass ], value = true,
+  cmm = "Mass iteration", ps = "mass_histogram.ps" );
+//
+//  Write a file.
+//
+ofstream of ( "mass_histogram.txt" );
+for ( int it = 0; it < itmax; it++ ) 
+{
+  of << itplot[it] << " " << mass[it] << endl;
+}
+//
+//  Terminate.
+//
+cout << "\n";
+cout << "convection:\n";
+cout << "  Normal end of execution.\n";
+
+exit ( 0 );
