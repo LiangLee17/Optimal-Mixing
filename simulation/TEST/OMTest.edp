@@ -1,0 +1,167 @@
+load "Element_P3"
+
+// Parameters
+real dt = 0.02;  // time intervel
+int n0 = 128; // mesh number
+real time = 1.5; // evolution time
+bool debug = true;
+
+// generator border and mesh
+// border
+border C0(t=-1, 1){x=t; y=-1; label=0;};
+border C1(t=-1, 1){x=1; y=t; label=1;};
+border C2(t=-1, 1){x=-t; y=1; label=2;};
+border C3(t=-1, 1){x=-1; y=-t; label=3;}; 
+// mesh/
+mesh Th = buildmesh(C0(n0)+C1(n0)+C2(n0)+C3(n0)); 
+
+// border C(t=0, 2*pi){x=cos(t); y=sin(t);}
+// mesh Th = buildmesh(C(512));
+
+string meshName = "MeshNum_"+n0+".ps";
+plot(Th, wait = debug, ps = meshName);
+
+// Fespace
+fespace Vh(Th, P2);
+
+Vh theta = (cos(2*pi*x)*cos(pi*y)+0.5*cos(3*pi*y)+x+y); // initial distribution
+Vh theta0; // assistant distribution
+
+// string initialName = "initialDistribution"+".ps";
+plot(theta, wait=true, fill = true);//ps = initialName);
+
+//  Measure the initial l2 norm.
+real l20 = int2d(Th) (theta*theta);
+// Measure the l2 norm
+int itmax = time/dt; 
+real[int] itplot(itmax);
+real[int] l2(itmax);
+real[int] l1(itmax);
+real[int] mixnorm(itmax);
+
+// Time loop
+real t = 0.;
+for (int m = 0; m < itmax; m++){
+    // Update
+    t += dt; 
+    itplot[m] = m;
+
+    real avg = int2d(Th)(theta);
+    l1[m] = avg;
+    l2[m] = int2d(Th)((theta-avg)*(theta-avg));
+
+    // Solve a Poisson equation with pure Neumann boundary condition
+    /* 
+        -(\Delta)(\varphi)=-\nabla\cdot\u:=f
+        du/dn = 0 on partial_Omega
+        \int_{\varphi}dx=0
+    */ 
+
+    // get varphi
+    int n = Vh.ndof;
+    int n1 = n+1;
+
+    Vh varphi,v;              // unknown and test function. 
+    Vh f=-theta;                //  right hand side function 
+    
+    varf va(varphi,v) =                    //  definition of  the problem 
+        int2d(Th)( dx(varphi)*dx(v) + dy(varphi)*dy(v) ) //  bilinear form
+    ;
+    varf vL(varphi,v)=  int2d(Th)(f*v);
+    varf vb(varphi,v)= int2d(Th)(1.*v);
+
+    matrix A=va(Vh,Vh);
+
+    real[int] b(n);
+    b = vL(0,Vh);
+
+    real[int]  B = vb(0,Vh); 	
+    // the block matrix
+
+    matrix AA = [ [ A ,  B ] ,
+                [ B', 0 ] ] ;
+
+    real[int]  bb(n+1),xx(n+1),b1(1),l(1);
+    b1=0;
+    // build the block rhs 
+    bb = [ b, b1];
+    set(AA,solver=sparsesolver);
+    xx = AA^-1*bb; // solve the linear system
+
+    [varphi[],l] = xx;  // set the value, varphi is the varphi that we need. 
+
+    // plot(varphi, fill=true, wait=true);
+
+    mixnorm[m] = int2d(Th)(dx(varphi)*dx(varphi)+dy(varphi)*dy(varphi));
+    
+    // get projection
+
+    // Solve a Poisson equation with pure Neumann boundary condition
+    /* 
+        -(\Delta)(\varphi)=-\nabla\cdot\u:=f
+        n\cdot\varphi=n\cdot\u:=g
+    */ 
+    // without projection
+    Vh u1 = theta*(dx(varphi));
+    Vh u2 = theta*(dy(varphi));
+
+    Vh uh;              // unknown and test function. 
+    f = -dx(u1)-dy(u2);                 //  right hand side function 
+
+    varf vLP(varphi,v) =  int2d(Th)(f*v);
+    b = vLP(0,Vh);
+    bb = [ b, b1];
+
+    set(AA,solver=sparsesolver);
+    xx = AA^-1*bb;
+
+    xx = AA^-1*bb; // solve the linear system
+    [uh[],l] = xx;  // set the value, varphi is the varphi that we need. 
+
+    // projection
+    Vh up1, up2, p1, p2;
+    up1 = u1-dx(uh);
+    up2 = u2-dy(uh);
+
+    real l2norm = sqrt(int2d(Th)(up1*up1+up2*up2));
+    
+    p1 = up1/l2norm;
+    p2 = up2/l2norm; 
+    
+    // convection
+
+    theta0 = theta;
+    theta = convect([p1, p2], -dt, theta0);
+
+    // Plot
+    plot(theta, cmm=" t="+t+", min="+theta[].min+", max="+theta[].max, fill = true, value=true); 
+    
+}
+
+plot ( [itplot, l1], value = true, cmm = "l1 iteration", ps = "l1_histogram.ps", wait=true);
+plot ( [itplot, l2], value = true, cmm = "l2 iteration", ps = "l2_histogram.ps", wait=true);
+plot ( [itplot, mixnorm], value = true, cmm = "mixnorm iteration", ps = "mixnorm_histogram.ps" );
+
+//
+//  Write a file.
+//
+ofstream ofl ( "l1norm_histogram.txt" );
+for ( int it = 0; it < itmax; it++ ) 
+{
+  ofl << itplot[it] << " " << l1[it] << endl;
+}
+
+ofstream of ( "l2norm_histogram.txt" );
+for ( int it = 0; it < itmax; it++ ) 
+{
+  of << itplot[it] << " " << l2[it] << endl;
+}
+
+ofstream norm ( "mixnorm_histogram.txt" );
+for ( int it = 0; it < itmax; it++ ) 
+{
+  norm << itplot[it] << " " << mixnorm[it] << endl;
+}
+//
+//  Terminate.
+//
